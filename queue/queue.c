@@ -3,35 +3,35 @@
 #include <semaphore.h>
 #include <pthread.h>
 
-// NodeQueue structure for the linked list
-typedef struct NodeQueue
+// node_queue_t structure for the linked list
+typedef struct node_queue_t
 {
     void *data;
-    struct NodeQueue *next;
-} NodeQueue;
+    struct node_queue_t *next;
+} node_queue_t;
 
-// Queue structure
-typedef struct Queue
+// queue_t structure
+typedef struct queue_t
 {
-    NodeQueue *front;
-    NodeQueue *rear;
+    node_queue_t *front;
+    node_queue_t *rear;
     sem_t sem;
     pthread_mutex_t mutex;
-} Queue;
+} queue_t;
 
 // Create a new node
-NodeQueue *create_node_queue(void *data)
+node_queue_t *create_node_queue(void *data)
 {
-    NodeQueue *new_node = (NodeQueue *)malloc(sizeof(NodeQueue));
+    node_queue_t *new_node = (node_queue_t *)malloc(sizeof(node_queue_t));
     new_node->data = data;
     new_node->next = NULL;
     return new_node;
 }
 
 // Initialize a queue
-Queue *create_queue()
+queue_t *create_queue()
 {
-    Queue *queue = (Queue *)malloc(sizeof(Queue));
+    queue_t *queue = (queue_t *)malloc(sizeof(queue_t));
     queue->front = queue->rear = NULL;
     sem_init(&queue->sem, 0, 0);
     pthread_mutex_init(&queue->mutex, NULL);
@@ -39,9 +39,9 @@ Queue *create_queue()
 }
 
 // Enqueue (add to the rear of the queue)
-void enqueue(Queue *queue, void *data)
+void enqueue(queue_t *queue, void *data)
 {
-    NodeQueue *new_node = create_node_queue(data);
+    node_queue_t *new_node = create_node_queue(data);
 
     pthread_mutex_lock(&queue->mutex);
     // If the queue is empty, both front and rear point to the new node
@@ -59,7 +59,7 @@ void enqueue(Queue *queue, void *data)
 }
 
 // Dequeue (remove from the front of the queue)
-void *dequeue(Queue *queue)
+void *dequeue(queue_t *queue)
 {
     pthread_mutex_lock(&queue->mutex);
 
@@ -70,7 +70,7 @@ void *dequeue(Queue *queue)
     }
 
     // Store the previous front and move front to the next node
-    NodeQueue *temp = queue->front;
+    node_queue_t *temp = queue->front;
     void *data = temp->data;
     queue->front = queue->front->next;
 
@@ -86,7 +86,7 @@ void *dequeue(Queue *queue)
 }
 
 // Peek (get the front element without removing it)
-void *peek(Queue *queue)
+void *peek(queue_t *queue)
 {
     pthread_mutex_lock(&queue->mutex);
     if (queue->front == NULL)
@@ -94,13 +94,13 @@ void *peek(Queue *queue)
         printf("Queue is empty!\n");
         return NULL;
     }
-    void* data = queue->front->data;
+    void *data = queue->front->data;
     pthread_mutex_unlock(&queue->mutex);
     return data;
 }
 
 // Check if the queue is empty
-int is_empty(Queue *queue)
+int is_empty(queue_t *queue)
 {
     return queue->front == NULL;
 }

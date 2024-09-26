@@ -12,61 +12,89 @@
 #define TRANSFER 1
 #define BALANCE 2
 
-Queue *transactions;
-HashTable *accounts;
+queue_t *transactions;
+hash_table_t *accounts;
 
-typedef struct Account
+typedef struct account_t
 {
     int id;
     float balance;
     char *name;
     pthread_mutex_t mutex;
-} Account;
+} account_t;
 
-typedef struct Transaction
+typedef struct transaction_t
 {
     int account_id;
     int receiver_id;
     int type;
     float amount;
-} Transaction;
+} transaction_t;
+
+typedef void (*thread_func_t)(void *arg);
+typedef struct work_t
+{
+    thread_func_t func;
+    void *arg;
+} work_t;
+
+typedef struct thread_pool_t
+{
+    queue_t *work_queue;
+    int working_count;
+    int thread_count;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    int shutdown;
+} thread_pool_t;
+
+void *system_thread(void *arg)
+{
+    thread_pool_t thread_pool = create_thread_pool();
+    while (1)
+    {
+        sem_wait(&transactions->sem);
+
+        if (thread_pool.shutdown)
+            break;
+
+        transaction_t *transaction = (transaction_t *)dequeue(transactions);
+
+        work_t *work = (work_t *)malloc(sizeof(work_t));
+        switch (transaction->type)
+        {
+        case DEPOSIT:
+            work->func = (thread_func_t)deposit;
+            work->arg = transaction;
+            break;
+        case TRANSFER:
+            work->func = (thread_func_t)transfer;
+            work->arg = transaction;
+            break;
+        case BALANCE:
+            work->func = (thread_func_t)balance;
+            work->arg = transaction;
+            break;
+        default:
+            break;
+        }
+
+        
+    }
+}
 
 void *worker_thread(void *arg)
 {
     while (1)
     {
-        sem_wait(&transactions->sem);
-        Transaction *transaction = (Transaction *)dequeue(transactions);
-        if (transaction == NULL)
-        {
-            continue;
-        }
-
-        switch (transaction->type)
-        {
-        case DEPOSIT:
-            deposit(transaction);
-            break;
-
-        case TRANSFER:
-            transfer(transaction);
-            break;
-
-        case BALANCE:
-            balance(transaction);
-            break;
-
-        default:
-            break;
-        }
     }
 
     return NULL;
 }
 
-void deposit(Transaction *transaction)
+void deposit(transaction_t *transaction)
 {
-    Account *account = (Account *)search(accounts, transaction->account_id);
+    account_t *account = (account_t *)search(accounts, transaction->account_id);
     if (account == NULL)
     {
         printf("Account not found\n");

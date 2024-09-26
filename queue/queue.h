@@ -4,25 +4,25 @@
 #include <semaphore.h>
 #include <pthread.h>
 
-typedef struct NodeQueue
+typedef struct node_queue_t
 {
     void *data;
-    struct NodeQueue *next;
-} NodeQueue;
+    struct node_queue_t *next;
+} node_queue_t;
 
-typedef struct Queue
+typedef struct queue_t
 {
-    NodeQueue *front;
-    NodeQueue *rear;
+    node_queue_t *front;
+    node_queue_t *rear;
     sem_t sem;
     pthread_mutex_t mutex;
-} Queue;
+} queue_t;
 
-NodeQueue *create_node(void *data);
-Queue *create_queue();
-void enqueue(Queue *queue, void *data);
-void *dequeue(Queue *queue);
-void *peek(Queue *queue);
-int is_empty(Queue *queue);
+node_queue_t *create_node(void *data);
+queue_t *create_queue();
+void enqueue(queue_t *queue, void *data);
+void *dequeue(queue_t *queue);
+void *peek(queue_t *queue);
+int is_empty(queue_t *queue);
 
 #endif // QUEUE_H

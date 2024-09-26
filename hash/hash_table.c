@@ -5,26 +5,26 @@
 
 #define TABLE_SIZE 100
 
-// NodeHash structure for chaining
-typedef struct NodeHash
+// node_hash_t structure for chaining
+typedef struct node_hash_t
 {
     int id;
     void *value;
-    struct NodeHash *next;
-} NodeHash;
+    struct node_hash_t *next;
+} node_hash_t;
 
 // Hash table structure
 typedef struct
 {
-    NodeHash *buckets[TABLE_SIZE];
+    node_hash_t *buckets[TABLE_SIZE];
     pthread_cond_t cond;
     pthread_mutex_t mutex;
     int balancing;
-} HashTable;
+} hash_table_t;
 
-HashTable *create_table()
+hash_table_t *create_table()
 {
-    HashTable *table = (HashTable *)malloc(sizeof(HashTable));
+    hash_table_t *table = (hash_table_t *)malloc(sizeof(hash_table_t));
     for (int i = 0; i < TABLE_SIZE; i++)
     {
         table->buckets[i] = NULL;
@@ -36,7 +36,7 @@ HashTable *create_table()
 }
 
 // Stops the thread until the balancing is done
-void check_balance(HashTable *table)
+void check_balance(hash_table_t *table)
 {
     while (table->balancing)
     {
@@ -51,9 +51,9 @@ unsigned int hash(int id)
 }
 
 // Create a new node
-NodeHash *create_node_hash(int id, void *value)
+node_hash_t *create_node_hash(int id, void *value)
 {
-    NodeHash *new_node = (NodeHash *)malloc(sizeof(NodeHash));
+    node_hash_t *new_node = (node_hash_t *)malloc(sizeof(node_hash_t));
     new_node->id = id;
     new_node->value = value;
     new_node->next = NULL;
@@ -61,20 +61,20 @@ NodeHash *create_node_hash(int id, void *value)
 }
 
 // Insert into hash table
-void insert(HashTable *table, int id, void *value)
+void insert(hash_table_t *table, int id, void *value)
 {
     check_balance(table);
 
     unsigned int index = hash(id);
-    NodeHash *new_node = create_node_hash(id, value);
+    node_hash_t *new_node = create_node_hash(id, value);
     new_node->next = table->buckets[index];
     table->buckets[index] = new_node;
 }
 
-void *_search(HashTable *table, int id)
+void *_search(hash_table_t *table, int id)
 {
     unsigned int index = hash(id);
-    NodeHash *node = table->buckets[index];
+    node_hash_t *node = table->buckets[index];
     while (node)
     {
         if (node->id == id)
@@ -87,14 +87,14 @@ void *_search(HashTable *table, int id)
 }
 
 // Search in hash table
-void *search(HashTable *table, int id)
+void *search(hash_table_t *table, int id)
 {
     check_balance(table);
     return _search(table, id);
 }
 
 // Search in hash table (read-only please)
-void *search_read_only(HashTable *table, int id)
+void *search_read_only(hash_table_t *table, int id)
 {
     return _search(table, id);
 }
