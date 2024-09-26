@@ -18,15 +18,20 @@ typedef struct
     NodeHash *buckets[TABLE_SIZE];
 } HashTable;
 
+HashTable *create_table()
+{
+    HashTable *table = (HashTable *)malloc(sizeof(HashTable));
+    for (int i = 0; i < TABLE_SIZE; i++)
+    {
+        table->buckets[i] = NULL;
+    }
+    return table;
+}
+
 // Simple hash function
 unsigned int hash(int id)
 {
-    unsigned int hash = 0;
-    while (id)
-    {
-        hash = (hash << 5) + id++;
-    }
-    return hash % TABLE_SIZE;
+    return id % TABLE_SIZE;
 }
 
 // Create a new node

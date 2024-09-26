@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.php": "php",
+        "*.rmd": "markdown",
+        "semaphore.h": "c",
+        "pthread.h": "c"
+    }
+}

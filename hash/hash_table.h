@@ -1,7 +1,7 @@
 #ifndef HASH_TABLE_H
 #define HASH_TABLE_H
 
-#define TABLE_SIZE 10
+#define TABLE_SIZE 100
 
 // NodeHash structure for chaining
 typedef struct NodeHash
@@ -18,9 +18,10 @@ typedef struct
 } HashTable;
 
 // Function prototypes
+HashTable *create_table();
 unsigned int hash(int id);
 void insert(HashTable *table, int id, void *value);
-int search(HashTable *table, int id);
+void* search(HashTable *table, int id);
 void deleteNode(HashTable *table, int id);
 
 #endif // HASH_TABLE_H

@@ -1,10 +1,21 @@
-#ifdef QUEUE_H
+#ifndef QUEUE_H
 #define QUEUE_H
+
+#include <semaphore.h>
+#include <pthread.h>
+
+typedef struct NodeQueue
+{
+    void *data;
+    struct NodeQueue *next;
+} NodeQueue;
 
 typedef struct Queue
 {
     NodeQueue *front;
     NodeQueue *rear;
+    sem_t sem;
+    pthread_mutex_t mutex;
 } Queue;
 
 NodeQueue *create_node(void *data);
