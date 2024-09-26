@@ -22,6 +22,6 @@ HashTable *create_table();
 unsigned int hash(int id);
 void insert(HashTable *table, int id, void *value);
 void* search(HashTable *table, int id);
-void deleteNode(HashTable *table, int id);
+void* search_read_only(HashTable *table, int id);
 
 #endif // HASH_TABLE_H
