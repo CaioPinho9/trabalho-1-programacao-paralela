@@ -79,9 +79,6 @@ void *system_thread(void *arg)
         sem_wait(&transactions->sem);
         transaction_count++;
 
-        if (thread_pool.shutdown)
-            break;
-
         transaction_t *transaction = (transaction_t *)dequeue(transactions);
 
         work_t *work = (work_t *)malloc(sizeof(work_t));
