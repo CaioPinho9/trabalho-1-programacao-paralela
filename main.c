@@ -70,7 +70,7 @@ thread_pool_t *create_thread_pool()
 
 void *system_thread(void *arg)
 {
-    thread_pool_t thread_pool = create_thread_pool();
+    thread_pool_t *thread_pool = create_thread_pool();
 
     int transaction_count = 0;
 
@@ -101,12 +101,12 @@ void *system_thread(void *arg)
         }
     }
 
-    thread_pool.shutdown = 1;
-    pthread_cond_broadcast(&thread_pool.cond);
+    thread_pool->shutdown = 1;
+    pthread_cond_broadcast(&thread_pool->cond);
 
-    while (thread_pool.working_count > 0)
+    while (thread_pool->working_count > 0)
     {
-        pthread_cond_wait(&thread_pool.cond, &thread_pool.mutex);
+        pthread_cond_wait(&thread_pool->cond, &thread_pool->mutex);
     }
 
     return NULL;
