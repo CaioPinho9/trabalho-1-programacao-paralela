@@ -48,12 +48,36 @@ typedef struct thread_pool_t
     int shutdown;
 } thread_pool_t;
 
+thread_pool_t *create_thread_pool()
+{
+    thread_pool_t *thread_pool = (thread_pool_t *)malloc(sizeof(thread_pool_t));
+    thread_pool->work_queue = create_queue();
+    thread_pool->working_count = 0;
+    thread_pool->thread_count = 0;
+    pthread_mutex_init(&thread_pool->mutex, NULL);
+    pthread_cond_init(&thread_pool->cond, NULL);
+    thread_pool->shutdown = 0;
+
+    for (int i = 0; i < WORKER_THREADS; i++)
+    {
+        pthread_t worker;
+        pthread_create(&worker, NULL, worker_thread, thread_pool);
+        pthread_detach(worker);
+    }
+
+    return thread_pool;
+}
+
 void *system_thread(void *arg)
 {
     thread_pool_t thread_pool = create_thread_pool();
-    while (1)
+
+    int transaction_count = 0;
+
+    while (transaction_count < 100)
     {
         sem_wait(&transactions->sem);
+        transaction_count++;
 
         if (thread_pool.shutdown)
             break;
@@ -78,13 +102,27 @@ void *system_thread(void *arg)
         default:
             break;
         }
-
-        
     }
+
+    thread_pool.shutdown = 1;
+    pthread_cond_broadcast(&thread_pool.cond);
+
+    while (thread_pool.working_count > 0)
+    {
+        pthread_cond_wait(&thread_pool.cond, &thread_pool.mutex);
+    }
+
+    return NULL;
 }
 
 void *worker_thread(void *arg)
 {
+    thread_pool_t *thread_pool = (thread_pool_t *)arg;
+
+    pthread_mutex_lock(&thread_pool->mutex);
+    thread_pool->thread_count++;
+    pthread_mutex_unlock(&thread_pool->mutex);
+
     while (1)
     {
     }
