@@ -4,18 +4,18 @@
 
 #define TABLE_SIZE 100
 
-// Node structure for chaining
-typedef struct Node
+// NodeHash structure for chaining
+typedef struct NodeHash
 {
     int id;
-    int value;
-    struct Node *next;
-} Node;
+    void *value;
+    struct NodeHash *next;
+} NodeHash;
 
 // Hash table structure
 typedef struct
 {
-    Node *buckets[TABLE_SIZE];
+    NodeHash *buckets[TABLE_SIZE];
 } HashTable;
 
 // Simple hash function
@@ -30,9 +30,9 @@ unsigned int hash(int id)
 }
 
 // Create a new node
-Node *create_node(int id, int value)
+NodeHash *create_node_hash(int id, void *value)
 {
-    Node *new_node = (Node *)malloc(sizeof(Node));
+    NodeHash *new_node = (NodeHash *)malloc(sizeof(NodeHash));
     new_node->id = id;
     new_node->value = value;
     new_node->next = NULL;
@@ -40,40 +40,40 @@ Node *create_node(int id, int value)
 }
 
 // Insert into hash table
-void insert(HashTable *table, int id, int value)
+void insert(HashTable *table, int id, void *value)
 {
     unsigned int index = hash(id);
-    Node *new_node = create_node(id, value);
+    NodeHash *new_node = create_node_hash(id, value);
     new_node->next = table->buckets[index];
     table->buckets[index] = new_node;
 }
 
 // Search in hash table
-int search(HashTable *table, int id)
+void *search(HashTable *table, int id)
 {
     unsigned int index = hash(id);
-    Node *node = table->buckets[index];
+    NodeHash *node = table->buckets[index];
     while (node)
     {
-        if (strcmp(node->id, id) == 0)
+        if (node->id == id)
         {
             return node->value;
         }
         node = node->next;
     }
-    return -1; // id not found
+    return NULL; // id not found
 }
 
 // Delete from hash table
 void deleteNode(HashTable *table, int id)
 {
     unsigned int index = hash(id);
-    Node *node = table->buckets[index];
-    Node *prev = NULL;
+    NodeHash *node = table->buckets[index];
+    NodeHash *prev = NULL;
 
     while (node)
     {
-        if (strcmp(node->id, id) == 0)
+        if (node->id == id)
         {
             if (prev)
             {
@@ -83,7 +83,6 @@ void deleteNode(HashTable *table, int id)
             {
                 table->buckets[index] = node->next;
             }
-            free(node->id);
             free(node);
             return;
         }
