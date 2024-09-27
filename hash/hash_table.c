@@ -71,7 +71,7 @@ void insert(hash_table_t *table, int id, void *value)
     table->buckets[index] = new_node;
 }
 
-void *_search(hash_table_t *table, int id)
+void *search(hash_table_t *table, int id)
 {
     unsigned int index = hash(id);
     node_hash_t *node = table->buckets[index];
@@ -84,17 +84,4 @@ void *_search(hash_table_t *table, int id)
         node = node->next;
     }
     return NULL; // id not found
-}
-
-// Search in hash table
-void *search(hash_table_t *table, int id)
-{
-    check_balance(table);
-    return _search(table, id);
-}
-
-// Search in hash table (read-only please)
-void *search_read_only(hash_table_t *table, int id)
-{
-    return _search(table, id);
 }

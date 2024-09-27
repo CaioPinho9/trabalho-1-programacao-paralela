@@ -22,6 +22,6 @@ hash_table_t *create_table();
 unsigned int hash(int id);
 void insert(hash_table_t *table, int id, void *value);
 void *search(hash_table_t *table, int id);
-void *search_read_only(hash_table_t *table, int id);
+void check_balance(hash_table_t *table);
 
 #endif // HASH_TABLE_H

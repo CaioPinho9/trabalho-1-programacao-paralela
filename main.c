@@ -137,6 +137,7 @@ void deposit(transaction_t *transaction)
     }
 
     pthread_mutex_lock(&account->mutex);
+    check_balance(accounts);
     account->balance += transaction->amount;
     pthread_mutex_unlock(&account->mutex);
     printf("Deposited %.2f to %s\n", transaction->amount, account->name);
