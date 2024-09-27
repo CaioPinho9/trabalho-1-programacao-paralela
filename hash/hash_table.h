@@ -15,10 +15,11 @@ typedef struct node_hash_t
 typedef struct
 {
     node_hash_t *buckets[TABLE_SIZE];
-    pthread_cond_t cond;
-    pthread_mutex_t mutex;
     int balancing;
+    int using;
     int size;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
 } hash_table_t;
 
 // Function prototypes

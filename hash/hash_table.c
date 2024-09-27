@@ -17,10 +17,11 @@ typedef struct node_hash_t
 typedef struct
 {
     node_hash_t *buckets[TABLE_SIZE];
-    pthread_cond_t cond;
-    pthread_mutex_t mutex;
     int balancing;
+    int using;
     int size;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
 } hash_table_t;
 
 hash_table_t *create_table()
@@ -30,20 +31,11 @@ hash_table_t *create_table()
     {
         table->buckets[i] = NULL;
     }
-    pthread_cond_init(&table->cond, NULL);
-    pthread_mutex_init(&table->mutex, NULL);
     table->balancing = 0;
     table->size = 0;
+    pthread_mutex_init(&table->mutex, NULL);
+    pthread_cond_init(&table->cond, NULL);
     return table;
-}
-
-// Stops the thread until the balancing is done
-void check_balance(hash_table_t *table)
-{
-    while (table->balancing)
-    {
-        pthread_cond_wait(&table->cond, &table->mutex);
-    }
 }
 
 // Simple hash function

@@ -23,6 +23,7 @@ typedef struct account_t
     float balance;
     char *name;
     pthread_mutex_t mutex;
+    pthread_cond_t cond;
 } account_t;
 
 typedef struct transaction_t
@@ -122,12 +123,31 @@ void *deposit(void *args)
         return NULL;
     }
 
-    pthread_mutex_lock(&account->mutex);
-    check_balance(accounts);
+    pthread_mutex_lock(&accounts->mutex);
+    while (accounts->balancing)
+    {
+        pthread_cond_wait(&accounts->cond, &accounts->mutex);
+    }
+    accounts->using += 1;
+    pthread_mutex_unlock(&accounts->mutex);
+
+    pthread_mutex_lock(&accounts->mutex);
+
     sleep(rand() % 3);
     account->balance += transaction->amount;
-    pthread_mutex_unlock(&account->mutex);
     printf("Deposited %.2f to %s\n", transaction->amount, account->name);
+
+    pthread_mutex_unlock(&account->mutex);
+
+    pthread_mutex_lock(&accounts->mutex);
+    accounts->using -= 1;
+
+    if (accounts->using == 0)
+    {
+        pthread_cond_broadcast(&accounts->cond);
+    }
+    pthread_mutex_unlock(&accounts->mutex);
+
     free(transaction);
 }
 
@@ -142,16 +162,35 @@ void *transfer(void *args)
         return NULL;
     }
 
-    // TODO: This mutex might cause a deadlock
+    pthread_mutex_lock(&accounts->mutex);
+    while (accounts->balancing)
+    {
+        pthread_cond_wait(&accounts->cond, &accounts->mutex);
+    }
+    accounts->using += 1;
+    pthread_mutex_unlock(&accounts->mutex);
+
     pthread_mutex_lock(&account->mutex);
-    pthread_mutex_lock(&receiver->mutex);
-    check_balance(accounts);
+    while (pthread_mutex_trylock(&receiver->mutex) != 0)
+    {
+        pthread_cond_wait(&accounts->cond, &account->mutex);
+    }
+
     sleep(rand() % 3);
     account->balance -= transaction->amount;
     receiver->balance += transaction->amount;
+    printf("Transferred %.2f from %s to %s\n", transaction->amount, account->name, receiver->name);
+
     pthread_mutex_unlock(&account->mutex);
     pthread_mutex_unlock(&receiver->mutex);
-    printf("Transferred %.2f from %s to %s\n", transaction->amount, account->name, receiver->name);
+    pthread_cond_signal(&account->cond);
+    pthread_cond_signal(&receiver->cond);
+
+    pthread_mutex_lock(&accounts->mutex);
+    accounts->using -= 1;
+    pthread_mutex_unlock(&accounts->mutex);
+    pthread_cond_signal(&accounts->cond);
+
     free(transaction);
 }
 
@@ -160,6 +199,11 @@ void *balance(void *args)
     transaction_t *transaction = (transaction_t *)args;
 
     pthread_mutex_lock(&accounts->mutex);
+    while (accounts->using > 0)
+    {
+        pthread_cond_wait(&accounts->cond, &accounts->mutex);
+    }
+
     accounts->balancing = 1;
     printf("Balancing...\n");
     for (size_t i = 0; i < accounts->size; i++)
@@ -196,8 +240,8 @@ void *system_thread(void *arg)
             work->arg = transaction;
             break;
         case TRANSFER:
-            // work->func = (thread_func_t)transfer;
-            // work->arg = transaction;
+            work->func = (thread_func_t)transfer;
+            work->arg = transaction;
             break;
         case BALANCE:
             work->func = (thread_func_t)balance;
@@ -236,6 +280,8 @@ void create_random_accounts()
         account->balance = rand() % 1000;
         account->name =
             (char *)malloc(10 * sizeof(char));
+        pthread_mutex_init(&account->mutex, NULL);
+        pthread_cond_init(&account->cond, NULL);
         sprintf(account->name, "Acc%d", i);
         insert(accounts, i, account);
         printf("Account: %d %.2f\n", account->id, account->balance);
