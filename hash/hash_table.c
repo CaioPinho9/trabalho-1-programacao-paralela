@@ -20,6 +20,7 @@ typedef struct
     pthread_cond_t cond;
     pthread_mutex_t mutex;
     int balancing;
+    int size;
 } hash_table_t;
 
 hash_table_t *create_table()
@@ -32,6 +33,7 @@ hash_table_t *create_table()
     pthread_cond_init(&table->cond, NULL);
     pthread_mutex_init(&table->mutex, NULL);
     table->balancing = 0;
+    table->size = 0;
     return table;
 }
 
@@ -63,12 +65,11 @@ node_hash_t *create_node_hash(int id, void *value)
 // Insert into hash table
 void insert(hash_table_t *table, int id, void *value)
 {
-    check_balance(table);
-
     unsigned int index = hash(id);
     node_hash_t *new_node = create_node_hash(id, value);
     new_node->next = table->buckets[index];
     table->buckets[index] = new_node;
+    table->size++;
 }
 
 void *search(hash_table_t *table, int id)

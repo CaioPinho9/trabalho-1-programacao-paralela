@@ -48,12 +48,14 @@ void enqueue(queue_t *queue, void *data)
     if (queue->rear == NULL)
     {
         queue->front = queue->rear = new_node;
-        return;
+    }
+    else
+    {
+        // Add the new node at the end and change rear
+        queue->rear->next = new_node;
+        queue->rear = new_node;
     }
 
-    // Add the new node at the end and change rear
-    queue->rear->next = new_node;
-    queue->rear = new_node;
     pthread_mutex_unlock(&queue->mutex);
     sem_post(&queue->sem);
 }
