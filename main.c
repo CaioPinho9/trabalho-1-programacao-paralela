@@ -5,13 +5,12 @@
 #include <semaphore.h>
 #include "hash/hash_table.h"
 #include "queue/queue.h"
-#include "main.h"
 
 #define WORKER_THREADS 5
-#define ACCOUNT_COUNT 10
-#define CLIENT_TRANSACTION_INTERVAL 10
-#define CLIENT_THREADS 10
+#define CLIENT_THREADS 3
+#define CLIENT_TRANSACTION_INTERVAL 5
 #define TRANSACTION_COUNT 100
+#define PROCESS_INTERVAL 3
 
 #define DEPOSIT 0
 #define TRANSFER 1
@@ -26,7 +25,6 @@ typedef struct account_t
     float balance;
     char *name;
     pthread_mutex_t mutex;
-    pthread_cond_t cond;
 } account_t;
 
 typedef struct transaction_t
@@ -54,6 +52,11 @@ typedef struct thread_pool_t
     pthread_cond_t cond;
     int shutdown;
 } thread_pool_t;
+
+void process_sleep()
+{
+    sleep(rand() % PROCESS_INTERVAL);
+}
 
 void *worker_thread(void *arg)
 {
@@ -125,6 +128,7 @@ void *deposit(void *args)
     if (account == NULL)
     {
         printf("Account not found\n");
+        free(transaction);
         return NULL;
     }
 
@@ -137,7 +141,7 @@ void *deposit(void *args)
     pthread_mutex_unlock(&accounts->mutex);
 
     pthread_mutex_lock(&account->mutex);
-    sleep(rand() % 3);
+    process_sleep();
     account->balance += transaction->amount;
     printf("Deposited %.2f to %s\n", transaction->amount, account->name);
 
@@ -159,6 +163,7 @@ void *transfer(void *args)
     if (sender == NULL || receiver == NULL)
     {
         printf("Account not found\n");
+        free(transaction);
         return NULL;
     }
 
@@ -170,26 +175,29 @@ void *transfer(void *args)
     accounts->using += 1;
     pthread_mutex_unlock(&accounts->mutex);
 
-    pthread_mutex_lock(&sender->mutex);
-    while (pthread_mutex_trylock(&receiver->mutex) != 0)
+    if (sender->id > receiver->id)
     {
-        pthread_cond_wait(&sender->cond, &sender->mutex);
+        account_t *temp = sender;
+        sender = receiver;
+        receiver = temp;
+        transaction->amount *= -1;
     }
 
-    sleep(rand() % 3);
+    pthread_mutex_lock(&sender->mutex);
+    pthread_mutex_lock(&receiver->mutex);
+
+    process_sleep();
     sender->balance -= transaction->amount;
     receiver->balance += transaction->amount;
     printf("Transferred %.2f from %s to %s\n", transaction->amount, sender->name, receiver->name);
-
-    pthread_mutex_unlock(&sender->mutex);
-    pthread_cond_broadcast(&sender->cond);
-    pthread_mutex_unlock(&receiver->mutex);
-    pthread_cond_broadcast(&receiver->cond);
 
     pthread_mutex_lock(&accounts->mutex);
     accounts->using -= 1;
     pthread_mutex_unlock(&accounts->mutex);
     pthread_cond_broadcast(&accounts->cond);
+
+    pthread_mutex_unlock(&sender->mutex);
+    pthread_mutex_unlock(&receiver->mutex);
 
     free(transaction);
 }
@@ -199,20 +207,20 @@ void *balance(void *args)
     transaction_t *transaction = (transaction_t *)args;
 
     pthread_mutex_lock(&accounts->mutex);
-    printf("Balancing...\n");
+    printf("Wait to balancing...\n");
+    accounts->balancing = 1;
     while (accounts->using > 0)
     {
-        printf("Using Balance: %d\n", accounts->using);
+        printf("Waiting: %d\n", accounts->using);
         pthread_cond_wait(&accounts->cond, &accounts->mutex);
     }
-    accounts->balancing = 1;
 
     printf("Balancing...\n");
     int total = 0;
     for (size_t i = 0; i < accounts->size; i++)
     {
         account_t *account = (account_t *)search(accounts, i);
-        sleep(rand() % 3);
+        process_sleep();
         printf("Account %s has %.2f\n", account->name, account->balance);
         total += account->balance;
     }
@@ -229,10 +237,11 @@ void *system_thread(void *arg)
     thread_pool_t *thread_pool = create_thread_pool();
 
     int transaction_count = 0;
+    int balance_count = 0;
 
-    while (transaction_count < TRANSACTION_COUNT * 1.1f)
+    while (transaction_count < TRANSACTION_COUNT + balance_count)
     {
-        printf("Transaction count: %d\n", transaction_count);
+        // printf("Transaction count: %d\n", transaction_count);
         sem_wait(&transactions->sem);
         sem_wait(&thread_pool->available_threads);
 
@@ -263,6 +272,7 @@ void *system_thread(void *arg)
             transaction_t *transaction = (transaction_t *)malloc(sizeof(transaction_t));
             transaction->type = BALANCE;
             enqueue(transactions, transaction);
+            balance_count++;
         }
     }
 
@@ -279,7 +289,7 @@ void *system_thread(void *arg)
 
 void create_random_accounts()
 {
-    for (int i = 0; i < ACCOUNT_COUNT; i++)
+    for (int i = 0; i < CLIENT_THREADS; i++)
     {
         account_t *account = (account_t *)malloc(sizeof(account_t));
         account->id = i;
@@ -287,7 +297,6 @@ void create_random_accounts()
         account->name =
             (char *)malloc(10 * sizeof(char));
         pthread_mutex_init(&account->mutex, NULL);
-        pthread_cond_init(&account->cond, NULL);
         sprintf(account->name, "Acc%d", i);
         insert(accounts, i, account);
         printf("Account: %d %.2f\n", account->id, account->balance);
@@ -305,11 +314,11 @@ void create_random_transaction(int id)
     {
         do
         {
-            transaction->receiver_id = rand() % ACCOUNT_COUNT;
-        } while (transaction->receiver_id == transaction->account_id);
+            transaction->receiver_id = rand() % CLIENT_THREADS;
+        } while (transaction->receiver_id == transaction->account_id && transaction->receiver_id != 0);
     }
 
-    transaction->amount = rand() % 1000;
+    transaction->amount = 100;
 
     // printf("Transaction: %d %d %d %.2f\n", transaction->account_id, transaction->receiver_id, transaction->type, transaction->amount);
     enqueue(transactions, transaction);
@@ -318,7 +327,7 @@ void create_random_transaction(int id)
 void *client_thread(void *arg)
 {
     long id = (long)arg;
-    for (size_t i = 0; i < TRANSACTION_COUNT / ACCOUNT_COUNT; i++)
+    for (size_t i = 0; i < TRANSACTION_COUNT / CLIENT_THREADS; i++)
     {
         create_random_transaction(id);
         sleep(rand() % CLIENT_TRANSACTION_INTERVAL);
@@ -333,7 +342,7 @@ int main(int argc, char **argv)
     create_random_accounts();
 
     pthread_t pthread;
-    for (long i = 0; i < ACCOUNT_COUNT; i++)
+    for (long i = 0; i < CLIENT_THREADS; i++)
     {
         pthread_create(&pthread, NULL, client_thread, (void *)i);
         pthread_detach(pthread);
