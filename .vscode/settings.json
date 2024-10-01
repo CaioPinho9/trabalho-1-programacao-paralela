@@ -3,6 +3,7 @@
         "*.php": "php",
         "*.rmd": "markdown",
         "semaphore.h": "c",
-        "pthread.h": "c"
+        "pthread.h": "c",
+        "algorithm": "c"
     }
 }
