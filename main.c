@@ -10,7 +10,7 @@
 #define CLIENT_THREADS 3
 #define CLIENT_TRANSACTION_INTERVAL 5
 #define TRANSACTION_COUNT 100
-#define PROCESS_INTERVAL 3
+#define PROCESS_INTERVAL 1
 
 #define DEPOSIT 0
 #define TRANSFER 1
@@ -124,8 +124,8 @@ thread_pool_t *create_thread_pool()
 void *deposit(void *args)
 {
     transaction_t *transaction = (transaction_t *)args;
-    account_t *account = (account_t *)search(accounts, transaction->account_id);
-    if (account == NULL)
+    account_t *deposit_account = (account_t *)search(accounts, transaction->account_id);
+    if (deposit_account == NULL)
     {
         printf("Account not found\n");
         free(transaction);
@@ -140,17 +140,25 @@ void *deposit(void *args)
     accounts->using += 1;
     pthread_mutex_unlock(&accounts->mutex);
 
-    pthread_mutex_lock(&account->mutex);
+    pthread_mutex_lock(&deposit_account->mutex);
     process_sleep();
-    account->balance += transaction->amount;
-    printf("Deposited %.2f to %s\n", transaction->amount, account->name);
+    deposit_account->balance += transaction->amount;
 
-    pthread_mutex_unlock(&account->mutex);
+    if (transaction->amount > 0)
+    {
+        printf("Deposited %.2f to %s\n", transaction->amount, deposit_account->name);
+    }
+    else
+    {
+        printf("Withdraw %.2f from %s\n", -transaction->amount, deposit_account->name);
+    }
+
+    pthread_mutex_unlock(&deposit_account->mutex);
 
     pthread_mutex_lock(&accounts->mutex);
     accounts->using -= 1;
-    pthread_cond_broadcast(&accounts->cond);
     pthread_mutex_unlock(&accounts->mutex);
+    pthread_cond_broadcast(&accounts->cond);
 
     free(transaction);
 }
@@ -189,15 +197,23 @@ void *transfer(void *args)
     process_sleep();
     sender->balance -= transaction->amount;
     receiver->balance += transaction->amount;
-    printf("Transferred %.2f from %s to %s\n", transaction->amount, sender->name, receiver->name);
+
+    // if (transaction->amount > 0)
+    // {
+        printf("Transferred %.2f from %s to %s\n", transaction->amount, sender->name, receiver->name);
+    // }
+    // else
+    // {
+        // printf("Transferred %.2f from %s to %s\n", -transaction->amount, receiver->name, sender->name);
+    // }
 
     pthread_mutex_lock(&accounts->mutex);
     accounts->using -= 1;
     pthread_mutex_unlock(&accounts->mutex);
     pthread_cond_broadcast(&accounts->cond);
 
-    pthread_mutex_unlock(&sender->mutex);
     pthread_mutex_unlock(&receiver->mutex);
+    pthread_mutex_unlock(&sender->mutex);
 
     free(transaction);
 }
@@ -237,7 +253,7 @@ void *system_thread(void *arg)
     thread_pool_t *thread_pool = create_thread_pool();
 
     int transaction_count = 0;
-    int balance_count = 0;
+    int balance_count = -1;
 
     while (transaction_count < TRANSACTION_COUNT + balance_count)
     {
@@ -319,6 +335,10 @@ void create_random_transaction(int id)
     }
 
     transaction->amount = 100;
+
+    int is_negative = rand() % 2;
+    if (is_negative)
+        transaction->amount *= -1;
 
     // printf("Transaction: %d %d %d %.2f\n", transaction->account_id, transaction->receiver_id, transaction->type, transaction->amount);
     enqueue(transactions, transaction);
