@@ -191,6 +191,7 @@ void *transfer(void *args)
         transaction->amount *= -1;
     }
 
+    //TODO: Deadlock
     pthread_mutex_lock(&sender->mutex);
     pthread_mutex_lock(&receiver->mutex);
 
@@ -331,7 +332,7 @@ void create_random_transaction(int id)
         do
         {
             transaction->receiver_id = rand() % CLIENT_THREADS;
-        } while (transaction->receiver_id == transaction->account_id && transaction->receiver_id != 0);
+        } while (transaction->receiver_id == transaction->account_id);
     }
 
     transaction->amount = 100;
