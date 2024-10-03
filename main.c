@@ -191,7 +191,6 @@ void *transfer(void *args)
         transaction->amount *= -1;
     }
 
-    //TODO: Deadlock
     pthread_mutex_lock(&sender->mutex);
     pthread_mutex_lock(&receiver->mutex);
 
@@ -199,14 +198,14 @@ void *transfer(void *args)
     sender->balance -= transaction->amount;
     receiver->balance += transaction->amount;
 
-    // if (transaction->amount > 0)
-    // {
+    if (transaction->amount > 0)
+    {
         printf("Transferred %.2f from %s to %s\n", transaction->amount, sender->name, receiver->name);
-    // }
-    // else
-    // {
-        // printf("Transferred %.2f from %s to %s\n", -transaction->amount, receiver->name, sender->name);
-    // }
+    }
+    else
+    {
+        printf("Transferred %.2f from %s to %s\n", -transaction->amount, receiver->name, sender->name);
+    }
 
     pthread_mutex_lock(&accounts->mutex);
     accounts->using -= 1;
@@ -233,7 +232,7 @@ void *balance(void *args)
     }
 
     printf("Balancing...\n");
-    int total = 0;
+    float total = 0;
     for (size_t i = 0; i < accounts->size; i++)
     {
         account_t *account = (account_t *)search(accounts, i);
@@ -241,7 +240,7 @@ void *balance(void *args)
         printf("Account %s has %.2f\n", account->name, account->balance);
         total += account->balance;
     }
-    printf("Total balance: %d\n", total);
+    printf("Total balance: %f\n", total);
     accounts->balancing = 0;
     pthread_mutex_unlock(&accounts->mutex);
     pthread_cond_broadcast(&accounts->cond);
@@ -254,11 +253,11 @@ void *system_thread(void *arg)
     thread_pool_t *thread_pool = create_thread_pool();
 
     int transaction_count = 0;
-    int balance_count = -1;
+    int balance_count = 0;
 
     while (transaction_count < TRANSACTION_COUNT + balance_count)
     {
-        // printf("Transaction count: %d\n", transaction_count);
+        printf("Transaction count: %d\n", transaction_count);
         sem_wait(&transactions->sem);
         sem_wait(&thread_pool->available_threads);
 
@@ -284,7 +283,7 @@ void *system_thread(void *arg)
 
         enqueue(thread_pool->work_queue, work);
 
-        if (transaction_count % 10 == 0)
+        if ((transaction_count - 1) % 11 == 0)
         {
             transaction_t *transaction = (transaction_t *)malloc(sizeof(transaction_t));
             transaction->type = BALANCE;
