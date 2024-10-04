@@ -4,6 +4,10 @@
         "*.rmd": "markdown",
         "semaphore.h": "c",
         "pthread.h": "c",
-        "algorithm": "c"
+        "algorithm": "c",
+        "bit": "c",
+        "*.tcc": "c",
+        "cmath": "c",
+        "random": "c"
     }
 }
