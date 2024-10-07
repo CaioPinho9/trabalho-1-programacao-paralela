@@ -79,28 +79,30 @@ void process_sleep()
     sleep(rand() % PROCESS_INTERVAL);
 }
 
-void format_transaction(transaction_t *transaction)
+char *format_transaction(transaction_t *transaction)
 {
-    if (transaction->type == BALANCE)
+    char *result = malloc(256 * sizeof(char));
+    if (transaction == NULL)
     {
-        printf("[System] checked balance\n");
+        sprintf(result, "[System] checked balance");
     }
     else if (transaction->type == DEPOSIT && transaction->amount > 0)
     {
-        printf("[Client %d] deposited %.2f\n", transaction->account_id, transaction->amount);
+        sprintf(result, "[Client %d] deposited %.2f", transaction->account_id, transaction->amount);
     }
     else if (transaction->type == DEPOSIT && transaction->amount < 0)
     {
-        printf("[Client %d] withdrew %.2f\n", transaction->account_id, -transaction->amount);
+        sprintf(result, "[Client %d] withdrew %.2f", transaction->account_id, -transaction->amount);
     }
     else if (transaction->type == TRANSFER && transaction->amount > 0)
     {
-        printf("[Client %d] transferred %.2f to Client %d\n", transaction->account_id, transaction->amount, transaction->receiver_id);
+        sprintf(result, "[Client %d] transferred %.2f to Client %d", transaction->account_id, transaction->amount, transaction->receiver_id);
     }
     else
     {
-        printf("[Client %d] received %.2f from Client %d\n", transaction->account_id, -transaction->amount, transaction->receiver_id);
+        sprintf(result, "[Client %d] received %.2f from Client %d", transaction->account_id, -transaction->amount, transaction->receiver_id);
     }
+    return result;
 }
 
 void *worker_thread(void *arg)
@@ -132,8 +134,10 @@ void *worker_thread(void *arg)
         transaction_t *transaction = (transaction_t *)work->arg;
 
         state = BUSY;
-        printf("[Worker thread %d] is Busy got ", id);
-        format_transaction(transaction);
+        char *transaction_str = format_transaction(transaction);
+        printf("[Worker thread %d] is Busy got [%s]\n", id, transaction_str);
+        free(transaction_str);
+
         pthread_mutex_lock(&thread_pool->mutex);
         thread_pool->working_count++;
         pthread_mutex_unlock(&thread_pool->mutex);
@@ -457,7 +461,9 @@ void create_random_transaction(int id)
 
     enqueue(transactions, transaction);
 
-    format_transaction(transaction);
+    char *transaction_str = format_transaction(transaction);
+    printf("%s\n", transaction_str);
+    free(transaction_str);
 }
 
 // Send random transactions to the system
