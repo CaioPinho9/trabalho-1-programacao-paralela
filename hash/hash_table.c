@@ -5,7 +5,6 @@
 
 #define TABLE_SIZE 100
 
-// node_hash_t structure for chaining
 typedef struct node_hash_t
 {
     int id;
@@ -13,7 +12,6 @@ typedef struct node_hash_t
     struct node_hash_t *next;
 } node_hash_t;
 
-// Hash table structure
 typedef struct
 {
     node_hash_t *buckets[TABLE_SIZE];
@@ -38,13 +36,11 @@ hash_table_t *create_table()
     return table;
 }
 
-// Simple hash function
 unsigned int hash(int id)
 {
     return id % TABLE_SIZE;
 }
 
-// Create a new node
 node_hash_t *create_node_hash(int id, void *value)
 {
     node_hash_t *new_node = (node_hash_t *)malloc(sizeof(node_hash_t));
@@ -54,7 +50,6 @@ node_hash_t *create_node_hash(int id, void *value)
     return new_node;
 }
 
-// Insert into hash table
 void insert(hash_table_t *table, int id, void *value)
 {
     unsigned int index = hash(id);
@@ -76,5 +71,5 @@ void *search(hash_table_t *table, int id)
         }
         node = node->next;
     }
-    return NULL; // id not found
+    return NULL;
 }

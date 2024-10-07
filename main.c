@@ -11,13 +11,24 @@
 #define TRANSFER 1
 #define BALANCE 2
 
+#define FREE 0
+#define BUSY 1
+
+// Number of worker threads processing transactions
 int WORKER_THREADS = 5;
+// Number of client threads generating transactions
 int CLIENT_THREADS = 3;
+// Max interval between client transactions
 int CLIENT_TRANSACTION_INTERVAL = 10;
+// Number of transactions until system shutdown
 int TRANSACTION_LIMIT = 100;
+// Max interval between processing transactions
 int PROCESS_INTERVAL = 3;
+// Start balance for new accounts
 int START_BALANCE = 1000;
+// Max transaction amount
 int MAX_TRANSACTION = 1000;
+// Decimal precision for transaction amounts
 int DECIMAL_PRECISION = 2;
 
 queue_t *transactions;
@@ -57,6 +68,12 @@ typedef struct thread_pool_t
     int shutdown;
 } thread_pool_t;
 
+typedef struct worker_thread_info_t
+{
+    thread_pool_t *thread_pool;
+    int id;
+} worker_thread_info_t;
+
 void process_sleep()
 {
     sleep(rand() % PROCESS_INTERVAL);
@@ -64,9 +81,13 @@ void process_sleep()
 
 void *worker_thread(void *arg)
 {
-    thread_pool_t *thread_pool = (thread_pool_t *)arg;
+    worker_thread_info_t *info = (worker_thread_info_t *)arg;
+    thread_pool_t *thread_pool = info->thread_pool;
+    int id = info->id;
 
-    // Increase thread count
+    int state = FREE;
+    printf("[Worker thread %d] is Free\n", id);
+
     pthread_mutex_lock(&thread_pool->mutex);
     thread_pool->thread_count++;
     pthread_mutex_unlock(&thread_pool->mutex);
@@ -84,14 +105,16 @@ void *worker_thread(void *arg)
         if (work == NULL)
             break;
 
-        // Increase working count
+        state = BUSY;
+        printf("[Worker thread %d] is Busy\n", id);
         pthread_mutex_lock(&thread_pool->mutex);
         thread_pool->working_count++;
         pthread_mutex_unlock(&thread_pool->mutex);
 
-        // Execute work
         work->func(work->arg);
         free(work);
+        state = FREE;
+        printf("[Worker thread %d] is Free\n", id);
 
         // Decrease working count and signal that thread is available
         pthread_mutex_lock(&thread_pool->mutex);
@@ -125,8 +148,11 @@ thread_pool_t *create_thread_pool()
 
     for (int i = 0; i < WORKER_THREADS; i++)
     {
+        worker_thread_info_t *info = (worker_thread_info_t *)malloc(sizeof(worker_thread_info_t));
+        info->thread_pool = thread_pool;
+        info->id = i;
         pthread_t worker;
-        pthread_create(&worker, NULL, worker_thread, thread_pool);
+        pthread_create(&worker, NULL, worker_thread, info);
         pthread_detach(worker);
     }
 
@@ -141,7 +167,7 @@ void *deposit(void *args)
     account_t *deposit_account = (account_t *)search(accounts, transaction->account_id);
     if (deposit_account == NULL)
     {
-        printf("Account not found\n");
+        printf("[System] Account not found\n");
         free(transaction);
         return NULL;
     }
@@ -163,11 +189,11 @@ void *deposit(void *args)
 
     if (transaction->amount > 0)
     {
-        printf("Deposited %.2f to %s\n", transaction->amount, deposit_account->name);
+        printf("[System] Deposited %.2f to %s\n", transaction->amount, deposit_account->name);
     }
     else
     {
-        printf("Withdraw %.2f from %s\n", -transaction->amount, deposit_account->name);
+        printf("[System] Withdraw %.2f from %s\n", -transaction->amount, deposit_account->name);
     }
 
     pthread_mutex_unlock(&deposit_account->mutex);
@@ -190,7 +216,7 @@ void *transfer(void *args)
     account_t *receiver = (account_t *)search(accounts, transaction->receiver_id);
     if (sender == NULL || receiver == NULL)
     {
-        printf("Account not found\n");
+        printf("[System] Account not found\n");
         free(transaction);
         return NULL;
     }
@@ -225,11 +251,11 @@ void *transfer(void *args)
 
     if (transaction->amount > 0)
     {
-        printf("Transferred %.2f from %s to %s\n", transaction->amount, sender->name, receiver->name);
+        printf("[System] Transferred %.2f from %s to %s\n", transaction->amount, sender->name, receiver->name);
     }
     else
     {
-        printf("Transferred %.2f from %s to %s\n", -transaction->amount, receiver->name, sender->name);
+        printf("[System] Transferred %.2f from %s to %s\n", -transaction->amount, receiver->name, sender->name);
     }
 
     // Unlock accounts
@@ -249,27 +275,27 @@ void *balance(void *args)
     transaction_t *transaction = (transaction_t *)args;
 
     pthread_mutex_lock(&accounts->mutex);
-    printf("Wait to balancing...\n");
+    printf("[System] Wait to balancing...\n");
     // Set flag to stop transactions
     accounts->balancing = 1;
     // Wait for all transactions to finish
     while (accounts->using > 0)
     {
-        printf("Waiting: %d\n", accounts->using);
+        printf("[System] Waiting: %d\n", accounts->using);
         pthread_cond_wait(&accounts->cond, &accounts->mutex);
     }
 
     // Balance all accounts
-    printf("Balancing...\n");
+    printf("[System] Balancing...\n");
     float total = 0;
     for (size_t i = 0; i < accounts->size; i++)
     {
         account_t *account = (account_t *)search(accounts, i);
         process_sleep();
-        printf("Account %s: %.2f\n", account->name, account->balance);
+        printf("[System] Account %s: %.2f\n", account->name, account->balance);
         total += account->balance;
     }
-    printf("Total balance: %.2f\n", total);
+    printf("[System] Total balance: %.2f\n", total);
 
     // Reset flag and release threads
     accounts->balancing = 0;
@@ -289,10 +315,8 @@ work_t *create_work(thread_func_t func, void *arg)
 
 void *system_thread(void *arg)
 {
-    // Create thread pool and worker threads
     thread_pool_t *thread_pool = create_thread_pool();
 
-    // Count transactions and balance transactions
     int transaction_count = 0;
     int balance_count = -1;
 
@@ -304,7 +328,6 @@ void *system_thread(void *arg)
         // Wait for available worker thread
         sem_wait(&thread_pool->available_threads);
 
-        // Get transaction from queue
         transaction_count++;
         transaction_t *transaction = (transaction_t *)dequeue(transactions);
 
@@ -325,13 +348,11 @@ void *system_thread(void *arg)
             break;
         }
 
-        // Enqueue work
         enqueue(thread_pool->work_queue, work);
 
         // 11 instead of 10 so it doesn' count the balance transaction
         if (transaction_count % 11 == 0)
         {
-            // Create balance transaction
             transaction_t *transaction = (transaction_t *)malloc(sizeof(transaction_t));
             transaction->type = BALANCE;
             enqueue(transactions, transaction);
@@ -342,12 +363,10 @@ void *system_thread(void *arg)
     // Last balance
     work_t *work = work = create_work((thread_func_t)balance, NULL);
     enqueue(thread_pool->work_queue, work);
-
-    // Wait a second so a worker thread can get the last balance transaction
     sleep(1);
 
     thread_pool->shutdown = 1;
-    printf("Shutting down...\n");
+    printf("[System] Shutting down...\n");
 
     // Signal all worker threads
     for (size_t i = 0; i < thread_pool->thread_count; i++)
@@ -362,6 +381,7 @@ void *system_thread(void *arg)
     }
 
     free(thread_pool);
+    printf("[System] Shut down.\n");
 
     return NULL;
 }
@@ -376,7 +396,7 @@ void create_accounts()
         account->balance = START_BALANCE;
         account->name = (char *)malloc(10 * sizeof(char));
         pthread_mutex_init(&account->mutex, NULL);
-        sprintf(account->name, "Acc%d", i);
+        sprintf(account->name, "Client %d", i);
         insert(accounts, i, account);
         printf("Account: %d %.2f\n", account->id, account->balance);
     }
@@ -400,7 +420,6 @@ void create_random_transaction(int id)
         } while (transaction->receiver_id == transaction->account_id);
     }
 
-    // Random amount with decimal precision
     int decimal = pow(10, DECIMAL_PRECISION);
     transaction->amount = (float)(rand() % (MAX_TRANSACTION * decimal)) / decimal;
 
@@ -409,15 +428,32 @@ void create_random_transaction(int id)
     if (is_negative)
         transaction->amount *= -1;
 
-    // Enqueue transaction
     enqueue(transactions, transaction);
+
+    if (transaction->type == DEPOSIT && transaction->amount > 0)
+    {
+        printf("[Client %d] deposited %.2f\n", id, transaction->amount);
+    }
+    else if (transaction->type == DEPOSIT && transaction->amount < 0)
+    {
+        printf("[Client %d] withdrew %.2f\n", id, -transaction->amount);
+    }
+    else if (transaction->type == TRANSFER && transaction->amount > 0)
+    {
+        printf("[Client %d] transferred %.2f to Client %d\n", id, transaction->amount, transaction->receiver_id);
+    }
+    else
+    {
+        printf("[Client %d] received %.2f from Client %d\n", id, -transaction->amount, transaction->receiver_id);
+    }
 }
 
 // Send random transactions to the system
 void *client_thread(void *arg)
 {
     long id = (long)arg;
-    for (size_t i = 0; i < (TRANSACTION_LIMIT / CLIENT_THREADS) + 1; i++)
+    // Round up
+    for (size_t i = 0; i < (TRANSACTION_LIMIT + CLIENT_THREADS - 1) / CLIENT_THREADS; i++)
     {
         create_random_transaction(id);
         sleep(rand() % CLIENT_TRANSACTION_INTERVAL);
@@ -426,14 +462,14 @@ void *client_thread(void *arg)
 
 int main(int argc, char **argv)
 {
-    printf("./main [WORKER_THREADS] [CLIENT_THREADS] [CLIENT_TRANSACTION_INTERVAL] [TRANSACTION_LIMIT] [PROCESS_INTERVAL] [MAX_TRANSACTION] [DECIMAL_PRECISION] [START_BALANCE]\n\n");
+    printf("./main [WORKER_THREADS] [CLIENT_THREADS] [CLIENT_TRANSACTION_INTERVAL] [TRANSACTION_LIMIT] [PROCESS_INTERVAL] [MAX_TRANSACTION] [START_BALANCE] [DECIMAL_PRECISION]\n\n");
 
     switch (argc)
     {
     case 9:
-        START_BALANCE = atoi(argv[8]);
+        DECIMAL_PRECISION = atoi(argv[8]);
     case 8:
-        DECIMAL_PRECISION = atoi(argv[7]);
+        START_BALANCE = atoi(argv[7]);
     case 7:
         MAX_TRANSACTION = atoi(argv[6]);
     case 6:
@@ -447,7 +483,6 @@ int main(int argc, char **argv)
     case 2:
         WORKER_THREADS = atoi(argv[1]);
         break;
-
     default:
         break;
     }
@@ -458,15 +493,15 @@ int main(int argc, char **argv)
     printf("CLIENT_TRANSACTION_INTERVAL: %d\n", CLIENT_TRANSACTION_INTERVAL);
     printf("TRANSACTION_LIMIT: %d\n", TRANSACTION_LIMIT);
     printf("PROCESS_INTERVAL: %d\n\n", PROCESS_INTERVAL);
+    printf("MAX_TRANSACTION: %d\n", MAX_TRANSACTION);
+    printf("START_BALANCE: %d\n\n", START_BALANCE);
+    printf("DECIMAL_PRECISION: %d\n", DECIMAL_PRECISION);
 
-    // Initialize accounts hash table and transactions queue
     accounts = create_table();
     transactions = create_queue();
 
-    // Create accounts
     create_accounts();
 
-    // Create client threads
     pthread_t pthread;
     for (long i = 0; i < CLIENT_THREADS; i++)
     {
@@ -474,7 +509,6 @@ int main(int argc, char **argv)
         pthread_detach(pthread);
     }
 
-    // Create system thread
     pthread_create(&pthread, NULL, system_thread, NULL);
     pthread_join(pthread, NULL);
 

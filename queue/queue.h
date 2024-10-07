@@ -18,11 +18,8 @@ typedef struct queue_t
     pthread_mutex_t mutex;
 } queue_t;
 
-node_queue_t *create_node(void *data);
 queue_t *create_queue();
 void enqueue(queue_t *queue, void *data);
 void *dequeue(queue_t *queue);
-void *peek(queue_t *queue);
-int is_empty(queue_t *queue);
 
 #endif // QUEUE_H
