@@ -79,6 +79,30 @@ void process_sleep()
     sleep(rand() % PROCESS_INTERVAL);
 }
 
+void format_transaction(transaction_t *transaction)
+{
+    if (transaction->type == BALANCE)
+    {
+        printf("[System] checked balance\n");
+    }
+    else if (transaction->type == DEPOSIT && transaction->amount > 0)
+    {
+        printf("[Client %d] deposited %.2f\n", transaction->account_id, transaction->amount);
+    }
+    else if (transaction->type == DEPOSIT && transaction->amount < 0)
+    {
+        printf("[Client %d] withdrew %.2f\n", transaction->account_id, -transaction->amount);
+    }
+    else if (transaction->type == TRANSFER && transaction->amount > 0)
+    {
+        printf("[Client %d] transferred %.2f to Client %d\n", transaction->account_id, transaction->amount, transaction->receiver_id);
+    }
+    else
+    {
+        printf("[Client %d] received %.2f from Client %d\n", transaction->account_id, -transaction->amount, transaction->receiver_id);
+    }
+}
+
 void *worker_thread(void *arg)
 {
     worker_thread_info_t *info = (worker_thread_info_t *)arg;
@@ -105,13 +129,16 @@ void *worker_thread(void *arg)
         if (work == NULL)
             break;
 
+        transaction_t *transaction = (transaction_t *)work->arg;
+
         state = BUSY;
-        printf("[Worker thread %d] is Busy\n", id);
+        printf("[Worker thread %d] is Busy got ", id);
+        format_transaction(transaction);
         pthread_mutex_lock(&thread_pool->mutex);
         thread_pool->working_count++;
         pthread_mutex_unlock(&thread_pool->mutex);
 
-        work->func(work->arg);
+        work->func(transaction);
         free(work);
         state = FREE;
         printf("[Worker thread %d] is Free\n", id);
@@ -430,22 +457,7 @@ void create_random_transaction(int id)
 
     enqueue(transactions, transaction);
 
-    if (transaction->type == DEPOSIT && transaction->amount > 0)
-    {
-        printf("[Client %d] deposited %.2f\n", id, transaction->amount);
-    }
-    else if (transaction->type == DEPOSIT && transaction->amount < 0)
-    {
-        printf("[Client %d] withdrew %.2f\n", id, -transaction->amount);
-    }
-    else if (transaction->type == TRANSFER && transaction->amount > 0)
-    {
-        printf("[Client %d] transferred %.2f to Client %d\n", id, transaction->amount, transaction->receiver_id);
-    }
-    else
-    {
-        printf("[Client %d] received %.2f from Client %d\n", id, -transaction->amount, transaction->receiver_id);
-    }
+    format_transaction(transaction);
 }
 
 // Send random transactions to the system
