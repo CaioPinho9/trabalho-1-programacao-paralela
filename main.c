@@ -442,6 +442,9 @@ void create_random_transaction(int id)
     // 0: Deposit, 1: Transfer
     transaction->type = rand() % 2;
 
+    if (CLIENT_THREADS == 1)
+        transaction->type = DEPOSIT;
+
     // If transaction type is transfer, choose a random receiver that is not the same as the sender
     if (transaction->type == TRANSFER)
     {
