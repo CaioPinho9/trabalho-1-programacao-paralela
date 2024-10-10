@@ -513,10 +513,10 @@ int main(int argc, char **argv)
     printf("CLIENT_THREADS: %d\n", CLIENT_THREADS);
     printf("CLIENT_TRANSACTION_INTERVAL: %d\n", CLIENT_TRANSACTION_INTERVAL);
     printf("TRANSACTION_LIMIT: %d\n", TRANSACTION_LIMIT);
-    printf("PROCESS_INTERVAL: %d\n\n", PROCESS_INTERVAL);
+    printf("PROCESS_INTERVAL: %d\n", PROCESS_INTERVAL);
     printf("MAX_TRANSACTION: %d\n", MAX_TRANSACTION);
-    printf("START_BALANCE: %d\n\n", START_BALANCE);
-    printf("DECIMAL_PRECISION: %d\n", DECIMAL_PRECISION);
+    printf("START_BALANCE: %d\n", START_BALANCE);
+    printf("DECIMAL_PRECISION: %d\n\n", DECIMAL_PRECISION);
 
     accounts = create_table();
     transactions = create_queue();
