@@ -6,6 +6,7 @@
 #include <math.h>
 #include "hash/hash_table.h"
 #include "queue/queue.h"
+#include <sys/time.h>
 
 #define DEPOSIT 0
 #define TRANSFER 1
@@ -150,19 +151,19 @@ void *worker_thread(void *arg)
         // Decrease working count and signal that thread is available
         pthread_mutex_lock(&thread_pool->mutex);
         thread_pool->working_count--;
-        pthread_cond_signal(&thread_pool->cond);
         pthread_mutex_unlock(&thread_pool->mutex);
+        pthread_cond_broadcast(&thread_pool->cond);
         sem_post(&thread_pool->available_threads);
     }
 
     // Decrease thread count
     pthread_mutex_lock(&thread_pool->mutex);
     thread_pool->thread_count--;
+    pthread_mutex_unlock(&thread_pool->mutex);
     if (thread_pool->thread_count == 0)
     {
-        pthread_cond_signal(&thread_pool->cond);
+        pthread_cond_broadcast(&thread_pool->cond);
     }
-    pthread_mutex_unlock(&thread_pool->mutex);
 
     return NULL;
 }
@@ -310,9 +311,14 @@ void *balance(void *args)
     // Set flag to stop transactions
     accounts->balancing = 1;
     // Wait for all transactions to finish
+    int last_using = 0;
     while (accounts->using > 0)
     {
-        printf("[System] Waiting: %d\n", accounts->using);
+        if (last_using != accounts->using)
+        {
+            last_using = accounts->using;
+            printf("[System] Waiting: %d\n", accounts->using);
+        }
         pthread_cond_wait(&accounts->cond, &accounts->mutex);
     }
 
@@ -391,16 +397,11 @@ void *system_thread(void *arg)
         }
     }
 
-    // Last balance
-    work_t *work = work = create_work((thread_func_t)balance, NULL);
-    enqueue(thread_pool->work_queue, work);
-    sleep(1);
-
     thread_pool->shutdown = 1;
     printf("[System] Shutting down...\n");
 
     // Signal all worker threads
-    for (size_t i = 0; i < thread_pool->thread_count; i++)
+    for (size_t i = 0; i < WORKER_THREADS; i++)
     {
         sem_post(&thread_pool->work_queue->sem);
     }
@@ -508,6 +509,8 @@ int main(int argc, char **argv)
         break;
     }
 
+    struct timeval t1, t2;
+    gettimeofday(&t1, NULL);
     printf("Configuration:\n");
     printf("WORKER_THREADS: %d\n", WORKER_THREADS);
     printf("CLIENT_THREADS: %d\n", CLIENT_THREADS);
@@ -535,6 +538,11 @@ int main(int argc, char **argv)
 
     free(accounts);
     free(transactions);
+
+    gettimeofday(&t2, NULL);
+    double t_total = (t2.tv_sec - t1.tv_sec) + ((t2.tv_usec - t1.tv_usec) / 1000000.0);
+
+    printf("Time: %.6f\n\n", t_total);
 
     return 0;
 }
