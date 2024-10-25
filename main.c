@@ -409,11 +409,12 @@ void *system_thread(void *arg)
     // Wait for all worker threads to finish
     while (thread_pool->thread_count > 0)
     {
+        printf("[System] Waiting for %d threads to finish...\n", thread_pool->thread_count);
         pthread_cond_wait(&thread_pool->cond, &thread_pool->mutex);
     }
 
     free(thread_pool);
-    printf("[System] Shut down.\n");
+    printf("[System] Shutdown.\n");
 
     return NULL;
 }
